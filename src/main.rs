@@ -7,10 +7,18 @@ use std::sync::{
 
 // CPU Channel
 #[derive(Debug, serde::Serialize, schemars::JsonSchema)]
+struct CoreStats {
+    usage: f32,
+    frequency_mhz: u64,
+    vendor_id: String,
+    brand: String,
+}
+
+#[derive(Debug, serde::Serialize, schemars::JsonSchema)]
 struct CpuStats {
     usage: f32,
     physical_cores: u16,
-    core_usage: Vec<f32>,
+    cores: Vec<CoreStats>,
 }
 foxglove::static_typed_channel!(pub(crate) CPU, "/cpu", CpuStats);
 
@@ -26,18 +34,28 @@ fn log_cpu_info(sys: &mut System) {
             .trim()
             .parse()
             .unwrap_or(0),
-        core_usage: sys.cpus().iter().map(|c| c.cpu_usage()).collect(),
+        cores: sys
+            .cpus()
+            .iter()
+            .map(|c| CoreStats {
+                usage: c.cpu_usage(),
+                frequency_mhz: c.frequency(),
+                vendor_id: c.vendor_id().to_string(),
+                brand: c.brand().to_string(),
+            })
+            .collect(),
+        // core_usage: sys.cpus().iter().map(|c| c.cpu_usage()).collect(),
     });
 }
 
 // Memory Channel
 #[derive(Debug, serde::Serialize, schemars::JsonSchema)]
 struct MemoryStats {
-    total: u64,
-    available: u64,
-    used: u64,
-    swap_total: u64,
-    swap_used: u64,
+    total_kb: u64,
+    available_kb: u64,
+    used_kb: u64,
+    swap_total_kb: u64,
+    swap_used_kb: u64,
 }
 foxglove::static_typed_channel!(pub(crate) MEMORY, "/memory", MemoryStats);
 
@@ -45,21 +63,21 @@ fn log_memory_info(sys: &mut System) {
     sys.refresh_memory();
 
     MEMORY.log(&MemoryStats {
-        total: sys.total_memory(),
-        available: sys.available_memory(),
-        used: sys.used_memory(),
-        swap_total: sys.total_swap(),
-        swap_used: sys.used_swap(),
+        total_kb: sys.total_memory(),
+        available_kb: sys.available_memory(),
+        used_kb: sys.used_memory(),
+        swap_total_kb: sys.total_swap(),
+        swap_used_kb: sys.used_swap(),
     });
 }
 
+// Components Channel
 #[derive(Debug, serde::Serialize, schemars::JsonSchema)]
 struct ComponentStats {
     label: String,
     temperature: f32,
 }
 
-// Components Channel
 #[derive(Debug, serde::Serialize, schemars::JsonSchema)]
 struct ComponentsStats {
     components: Vec<ComponentStats>,
