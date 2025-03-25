@@ -1,4 +1,4 @@
-use sysinfo::{Components, Disks, System};
+use sysinfo::{Components, Disks, Networks, System};
 
 use std::sync::{
     Arc,
@@ -25,7 +25,6 @@ foxglove::static_typed_channel!(pub(crate) CPU, "/cpu", CpuStats);
 fn log_cpu_info(sys: &mut System) {
     sys.refresh_cpu_all();
 
-    // read the system data
     CPU.log(&CpuStats {
         usage: sys.global_cpu_usage(),
         physical_cores: System::physical_core_count(&sys)
@@ -44,7 +43,6 @@ fn log_cpu_info(sys: &mut System) {
                 brand: c.brand().to_string(),
             })
             .collect(),
-        // core_usage: sys.cpus().iter().map(|c| c.cpu_usage()).collect(),
     });
 }
 
@@ -98,7 +96,7 @@ fn log_components_info(components: &mut Components) {
     });
 }
 
-// Disks
+// Disks channel
 #[derive(Debug, serde::Serialize, schemars::JsonSchema)]
 struct DiskStats {
     name: String,
@@ -133,7 +131,40 @@ fn log_disks_info(disks: &mut Disks) {
     });
 }
 
-// Networks: TODO
+// Networks channel
+#[derive(Debug, serde::Serialize, schemars::JsonSchema)]
+struct NetworkStats {
+    interface_name: String,
+    mac_address: String,
+    received: u64,
+    transmitted: u64,
+    total_received: u64,
+    total_transmitted: u64,
+}
+
+#[derive(Debug, serde::Serialize, schemars::JsonSchema)]
+struct NetworksStats {
+    networks: Vec<NetworkStats>,
+}
+foxglove::static_typed_channel!(pub(crate) NETWORKS, "/networks", NetworksStats);
+
+fn log_networks_info(networks: &mut Networks) {
+    networks.refresh(true);
+
+    NETWORKS.log(&NetworksStats {
+        networks: networks
+            .iter()
+            .map(|(interface_name, data)| NetworkStats {
+                interface_name: interface_name.to_string(),
+                mac_address: data.mac_address().to_string(),
+                received: data.received(),
+                transmitted: data.transmitted(),
+                total_received: data.total_received(),
+                total_transmitted: data.total_transmitted(),
+            })
+            .collect(),
+    });
+}
 
 // Users: TODO
 
@@ -167,6 +198,7 @@ fn main() {
     let mut system = System::new_all();
     let mut components = Components::new_with_refreshed_list();
     let mut disks = Disks::new_with_refreshed_list();
+    let mut networks = Networks::new_with_refreshed_list();
     system.refresh_all();
 
     while !done.load(Ordering::Relaxed) {
@@ -174,6 +206,7 @@ fn main() {
         log_memory_info(&mut system);
         log_components_info(&mut components);
         log_disks_info(&mut disks);
+        log_networks_info(&mut networks);
         std::thread::sleep(std::time::Duration::from_millis(1000));
     }
 }
