@@ -1,4 +1,4 @@
-use sysinfo::{Components, Disks, Networks, System};
+use sysinfo::{Components, Disks, Networks, ProcessesToUpdate, System};
 
 use std::sync::{
     Arc,
@@ -166,9 +166,48 @@ fn log_networks_info(networks: &mut Networks) {
     });
 }
 
-// Users: TODO
+// Processes
+#[derive(Debug, serde::Serialize, schemars::JsonSchema)]
+struct ProcessStats {
+    pid: u32,
+    parent_pid: String,
+    name: String,
+    status: String,
+    cpu_usage: f32,
+    memory_usage_kb: u64,
+    start_time_seconds: u64,
+    run_time_seconds: u64,
+}
 
-// Processes: TODO
+#[derive(Debug, serde::Serialize, schemars::JsonSchema)]
+struct ProcessesStats {
+    processes: Vec<ProcessStats>,
+}
+foxglove::static_typed_channel!(pub(crate) PROCESSES, "/processes", ProcessesStats);
+
+fn log_processes_info(sys: &mut System) {
+    sys.refresh_processes(ProcessesToUpdate::All, true);
+
+    PROCESSES.log(&ProcessesStats {
+        processes: sys
+            .processes()
+            .iter()
+            .map(|(pid, process)| ProcessStats {
+                pid: pid.as_u32(),
+                parent_pid: match process.parent() {
+                    Some(parent) => parent.as_u32().to_string(),
+                    None => "Unknown".to_string(),
+                },
+                name: process.name().to_string_lossy().to_string(),
+                status: process.status().to_string(),
+                cpu_usage: process.cpu_usage(),
+                memory_usage_kb: process.memory() / 1024,
+                start_time_seconds: process.start_time(),
+                run_time_seconds: process.run_time(),
+            })
+            .collect(),
+    });
+}
 
 // System: TODO
 
@@ -207,6 +246,7 @@ fn main() {
         log_components_info(&mut components);
         log_disks_info(&mut disks);
         log_networks_info(&mut networks);
+        log_processes_info(&mut system);
         std::thread::sleep(std::time::Duration::from_millis(1000));
     }
 }
