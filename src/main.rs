@@ -6,18 +6,16 @@ use std::{
     },
 };
 
-// create a channel for my own data
-foxglove::static_typed_channel!(pub(crate) CPU_LOAD, "/cpu_load", foxglove::schemas::Vector3);
+// CPU Channel
+#[derive(Debug, serde::Serialize, schemars::JsonSchema)]
+struct CpuStats {
+    load: f32,
+}
+foxglove::static_typed_channel!(pub(crate) CPU, "/cpu", CpuStats);
 
 fn log_message() {
     // read the system data
-    // log the data to the channel
-
-    CPU_LOAD.log(&foxglove::schemas::Vector3 {
-        x: 1.0,
-        y: 2.0,
-        z: 3.0,
-    });
+    CPU.log(&CpuStats { load: 1.0 });
 }
 
 fn main() {
@@ -39,6 +37,6 @@ fn main() {
 
     while !done.load(Ordering::Relaxed) {
         log_message();
-        std::thread::sleep(std::time::Duration::from_millis(33));
+        std::thread::sleep(std::time::Duration::from_millis(1000));
     }
 }
