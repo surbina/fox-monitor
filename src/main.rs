@@ -98,6 +98,22 @@ fn log_components_info(components: &mut Components) {
     });
 }
 
+// Disks: TODO
+
+// Networks: TODO
+
+// Users: TODO
+
+// Processes: TODO
+
+// System: TODO
+
+// TODO
+// - Add flags to enable/disable logging for each channel
+// - Add flag to set the log interval
+// - Add flag to control logging format (webserver, mcap file, both)
+// - Add flag to set timer (automatically quit after X time of running)
+
 fn main() {
     let env = env_logger::Env::default().default_filter_or("debug");
     env_logger::init_from_env(env);
