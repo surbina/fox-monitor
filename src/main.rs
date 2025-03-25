@@ -1,4 +1,4 @@
-use sysinfo::System;
+use sysinfo::{Components, System};
 
 use std::sync::{
     Arc,
@@ -53,6 +53,33 @@ fn log_memory_info(sys: &mut System) {
     });
 }
 
+#[derive(Debug, serde::Serialize, schemars::JsonSchema)]
+struct ComponentStats {
+    label: String,
+    temperature: f32,
+}
+
+// Components Channel
+#[derive(Debug, serde::Serialize, schemars::JsonSchema)]
+struct ComponentsStats {
+    components: Vec<ComponentStats>,
+}
+foxglove::static_typed_channel!(pub(crate) COMPONENTS, "/components", ComponentsStats);
+
+fn log_components_info(components: &mut Components) {
+    components.refresh(true);
+
+    COMPONENTS.log(&ComponentsStats {
+        components: components
+            .iter()
+            .map(|c| ComponentStats {
+                label: c.label().to_string(),
+                temperature: c.temperature().unwrap_or(0.0),
+            })
+            .collect(),
+    });
+}
+
 fn main() {
     let env = env_logger::Env::default().default_filter_or("debug");
     env_logger::init_from_env(env);
@@ -71,11 +98,13 @@ fn main() {
         .expect("Server failed to start");
 
     let mut system = System::new_all();
+    let mut components = Components::new_with_refreshed_list();
     system.refresh_all();
 
     while !done.load(Ordering::Relaxed) {
         log_cpu_info(&mut system);
         log_memory_info(&mut system);
+        log_components_info(&mut components);
         std::thread::sleep(std::time::Duration::from_millis(1000));
     }
 }
