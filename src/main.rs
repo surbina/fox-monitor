@@ -209,7 +209,38 @@ fn log_processes_info(sys: &mut System) {
     });
 }
 
-// System: TODO
+// System
+#[derive(Debug, serde::Serialize, schemars::JsonSchema)]
+struct SystemStats {
+    name: String,
+    kernel_version: String,
+    os_version: String,
+    os_long_version: String,
+    host_name: String,
+    kernel: String,
+    boot_time_seconds: u64,
+    uptime_seconds: u64,
+    load_avg_one: f64,
+    load_avg_five: f64,
+    load_avg_fifteen: f64,
+}
+foxglove::static_typed_channel!(pub(crate) SYSTEM, "/system", SystemStats);
+
+fn log_system_info() {
+    SYSTEM.log(&SystemStats {
+        name: System::name().unwrap_or_else(|| "<unknown>".to_owned()),
+        kernel_version: System::kernel_version().unwrap_or_else(|| "<unknown>".to_owned()),
+        os_version: System::os_version().unwrap_or_else(|| "<unknown>".to_owned()),
+        os_long_version: System::long_os_version().unwrap_or_else(|| "<unknown>".to_owned()),
+        host_name: System::host_name().unwrap_or_else(|| "<unknown>".to_owned()),
+        kernel: System::kernel_version().unwrap_or_else(|| "<unknown>".to_owned()),
+        boot_time_seconds: System::boot_time(),
+        uptime_seconds: System::uptime(),
+        load_avg_one: System::load_average().one,
+        load_avg_five: System::load_average().five,
+        load_avg_fifteen: System::load_average().fifteen,
+    });
+}
 
 // TODO
 // - Add flags to enable/disable logging for each channel
@@ -247,6 +278,7 @@ fn main() {
         log_disks_info(&mut disks);
         log_networks_info(&mut networks);
         log_processes_info(&mut system);
+        log_system_info();
         std::thread::sleep(std::time::Duration::from_millis(1000));
     }
 }
