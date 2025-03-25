@@ -30,6 +30,29 @@ fn log_cpu_info(sys: &mut System) {
     });
 }
 
+// Memory Channel
+#[derive(Debug, serde::Serialize, schemars::JsonSchema)]
+struct MemoryStats {
+    total: u64,
+    available: u64,
+    used: u64,
+    swap_total: u64,
+    swap_used: u64,
+}
+foxglove::static_typed_channel!(pub(crate) MEMORY, "/memory", MemoryStats);
+
+fn log_memory_info(sys: &mut System) {
+    sys.refresh_memory();
+
+    MEMORY.log(&MemoryStats {
+        total: sys.total_memory(),
+        available: sys.available_memory(),
+        used: sys.used_memory(),
+        swap_total: sys.total_swap(),
+        swap_used: sys.used_swap(),
+    });
+}
+
 fn main() {
     let env = env_logger::Env::default().default_filter_or("debug");
     env_logger::init_from_env(env);
@@ -52,6 +75,7 @@ fn main() {
 
     while !done.load(Ordering::Relaxed) {
         log_cpu_info(&mut system);
+        log_memory_info(&mut system);
         std::thread::sleep(std::time::Duration::from_millis(1000));
     }
 }
