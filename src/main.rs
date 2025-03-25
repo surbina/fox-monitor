@@ -1,4 +1,4 @@
-use sysinfo::{Components, System};
+use sysinfo::{Components, Disks, System};
 
 use std::sync::{
     Arc,
@@ -98,7 +98,40 @@ fn log_components_info(components: &mut Components) {
     });
 }
 
-// Disks: TODO
+// Disks
+#[derive(Debug, serde::Serialize, schemars::JsonSchema)]
+struct DiskStats {
+    name: String,
+    mount_point: String,
+    total_read_kb: u64,
+    total_written_kb: u64,
+    read_kb: u64,
+    written_kb: u64,
+}
+
+#[derive(Debug, serde::Serialize, schemars::JsonSchema)]
+struct DisksStats {
+    disks: Vec<DiskStats>,
+}
+foxglove::static_typed_channel!(pub(crate) DISKS, "/disks", DisksStats);
+
+fn log_disks_info(disks: &mut Disks) {
+    disks.refresh(true);
+
+    DISKS.log(&DisksStats {
+        disks: disks
+            .iter()
+            .map(|d| DiskStats {
+                name: d.name().to_str().unwrap_or("Unknown").to_string(),
+                mount_point: d.mount_point().to_str().unwrap_or("Unknown").to_string(),
+                total_read_kb: d.usage().total_read_bytes / 1024,
+                total_written_kb: d.usage().total_written_bytes / 1024,
+                read_kb: d.usage().read_bytes / 1024,
+                written_kb: d.usage().written_bytes / 1024,
+            })
+            .collect(),
+    });
+}
 
 // Networks: TODO
 
@@ -133,12 +166,14 @@ fn main() {
 
     let mut system = System::new_all();
     let mut components = Components::new_with_refreshed_list();
+    let mut disks = Disks::new_with_refreshed_list();
     system.refresh_all();
 
     while !done.load(Ordering::Relaxed) {
         log_cpu_info(&mut system);
         log_memory_info(&mut system);
         log_components_info(&mut components);
+        log_disks_info(&mut disks);
         std::thread::sleep(std::time::Duration::from_millis(1000));
     }
 }
