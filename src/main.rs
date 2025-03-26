@@ -1,9 +1,12 @@
 use clap::Parser;
+use std::path::PathBuf;
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
 use sysinfo::{Components, Disks, Networks, ProcessesToUpdate, System};
+
+use foxglove::McapWriter;
 
 // CPU Channel
 #[derive(Debug, serde::Serialize, schemars::JsonSchema)]
@@ -244,7 +247,6 @@ fn log_system_info() {
 
 // TODO
 // - Add flag to control logging format (webserver, mcap file, both)
-// - Add flag to config path (mcap file)
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -276,6 +278,12 @@ struct Cli {
     /// If provided, the program will exit after the timeout (in seconds)
     #[arg(long)]
     timeout: Option<u64>,
+    /// Output path.
+    #[arg(long, default_value = "output.mcap")]
+    path: PathBuf,
+    /// If set, overwrite an existing file.
+    #[arg(long)]
+    overwrite: bool,
 }
 
 fn main() {
@@ -296,6 +304,14 @@ fn main() {
     foxglove::WebSocketServer::new()
         .start_blocking()
         .expect("Server failed to start");
+
+    if args.overwrite && args.path.exists() {
+        std::fs::remove_file(&args.path).expect("Failed to remove file");
+    }
+
+    let mcap = McapWriter::new()
+        .create_new_buffered_file(&args.path)
+        .expect("Failed to start mcap writer");
 
     let mut system = if args.cpu || args.memory || args.processes {
         Some(System::new_all())
@@ -365,4 +381,6 @@ fn main() {
         std::thread::sleep(std::time::Duration::from_millis(args.interval));
         elapsed_time_seconds = elapsed_time_seconds + 1;
     }
+
+    mcap.close().expect("Failed to close mcap writer");
 }
