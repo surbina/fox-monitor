@@ -244,6 +244,7 @@ fn log_system_info() {
 
 // TODO
 // - Add flag to control logging format (webserver, mcap file, both)
+// - Add flag to config path (mcap file)
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -296,11 +297,33 @@ fn main() {
         .start_blocking()
         .expect("Server failed to start");
 
-    let mut system = System::new_all();
-    let mut components = Components::new_with_refreshed_list();
-    let mut disks = Disks::new_with_refreshed_list();
-    let mut networks = Networks::new_with_refreshed_list();
-    system.refresh_all();
+    let mut system = if args.cpu || args.memory || args.processes {
+        Some(System::new_all())
+    } else {
+        None
+    };
+
+    let mut components = if args.temperature {
+        Some(Components::new_with_refreshed_list())
+    } else {
+        None
+    };
+
+    let mut disks = if args.disks {
+        Some(Disks::new_with_refreshed_list())
+    } else {
+        None
+    };
+
+    let mut networks = if args.networks {
+        Some(Networks::new_with_refreshed_list())
+    } else {
+        None
+    };
+
+    if let Some(sys) = system.as_mut() {
+        sys.refresh_all();
+    }
 
     let mut elapsed_time_seconds: u64 = 0;
     while !done.load(Ordering::Relaxed)
@@ -308,23 +331,33 @@ fn main() {
             .timeout
             .map_or(true, |timeout| elapsed_time_seconds < timeout)
     {
-        if args.cpu {
-            log_cpu_info(&mut system);
-        }
-        if args.memory {
-            log_memory_info(&mut system);
+        if args.cpu || args.memory || args.processes {
+            if let Some(sys) = system.as_mut() {
+                if args.cpu {
+                    log_cpu_info(sys);
+                }
+                if args.memory {
+                    log_memory_info(sys);
+                }
+                if args.processes {
+                    log_processes_info(sys);
+                }
+            }
         }
         if args.temperature {
-            log_components_info(&mut components);
+            if let Some(comps) = components.as_mut() {
+                log_components_info(comps);
+            }
         }
         if args.disks {
-            log_disks_info(&mut disks);
+            if let Some(d) = disks.as_mut() {
+                log_disks_info(d);
+            }
         }
         if args.networks {
-            log_networks_info(&mut networks);
-        }
-        if args.processes {
-            log_processes_info(&mut system);
+            if let Some(nets) = networks.as_mut() {
+                log_networks_info(nets);
+            }
         }
         if args.system {
             log_system_info();
