@@ -245,8 +245,12 @@ fn log_system_info() {
     });
 }
 
-// TODO
-// - Add flag to control logging format (webserver, mcap file, both)
+#[derive(Debug, Clone, clap::ValueEnum)]
+enum OutputFormat {
+    Mcap,
+    Websocket,
+    Both,
+}
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -278,11 +282,14 @@ struct Cli {
     /// If provided, the program will exit after the timeout (in seconds)
     #[arg(long)]
     timeout: Option<u64>,
-    /// Output path.
+    /// Output format (mcap file, websocket server, or both)
+    #[arg(short, long, value_enum, default_value_t = OutputFormat::Both)]
+    format: OutputFormat,
+    /// Output path for mcap file
     #[arg(long, default_value = "output.mcap")]
     path: PathBuf,
-    /// If set, overwrite an existing file.
-    #[arg(long)]
+    /// If set, overwrite an existing mcap file
+    #[arg(short, long)]
     overwrite: bool,
 }
 
@@ -301,17 +308,26 @@ fn main() {
     })
     .expect("Failed to set SIGINT handler");
 
-    foxglove::WebSocketServer::new()
-        .start_blocking()
-        .expect("Server failed to start");
-
-    if args.overwrite && args.path.exists() {
-        std::fs::remove_file(&args.path).expect("Failed to remove file");
+    // Start websocket server if format is Websocket or Both
+    if matches!(args.format, OutputFormat::Websocket | OutputFormat::Both) {
+        foxglove::WebSocketServer::new()
+            .start_blocking()
+            .expect("Server failed to start");
     }
 
-    let mcap = McapWriter::new()
-        .create_new_buffered_file(&args.path)
-        .expect("Failed to start mcap writer");
+    // Initialize mcap writer if format is Mcap or Both
+    let mcap = if matches!(args.format, OutputFormat::Mcap | OutputFormat::Both) {
+        if args.overwrite && args.path.exists() {
+            std::fs::remove_file(&args.path).expect("Failed to remove file");
+        }
+        Some(
+            McapWriter::new()
+                .create_new_buffered_file(&args.path)
+                .expect("Failed to start mcap writer"),
+        )
+    } else {
+        None
+    };
 
     let mut system = if args.cpu || args.memory || args.processes {
         Some(System::new_all())
@@ -382,5 +398,8 @@ fn main() {
         elapsed_time_seconds = elapsed_time_seconds + 1;
     }
 
-    mcap.close().expect("Failed to close mcap writer");
+    // Close mcap writer if it was initialized
+    if let Some(writer) = mcap {
+        writer.close().expect("Failed to close mcap writer");
+    }
 }
