@@ -1,9 +1,9 @@
-use sysinfo::{Components, Disks, Networks, ProcessesToUpdate, System};
-
+use clap::Parser;
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
+use sysinfo::{Components, Disks, Networks, ProcessesToUpdate, System};
 
 // CPU Channel
 #[derive(Debug, serde::Serialize, schemars::JsonSchema)]
@@ -243,14 +243,45 @@ fn log_system_info() {
 }
 
 // TODO
-// - Add flags to enable/disable logging for each channel
-// - Add flag to set the log interval
 // - Add flag to control logging format (webserver, mcap file, both)
-// - Add flag to set timer (automatically quit after X time of running)
+
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+struct Cli {
+    /// Log cpu info
+    #[arg(short, long)]
+    cpu: bool,
+    /// Log memory info
+    #[arg(short, long)]
+    memory: bool,
+    /// Log components temperature
+    #[arg(short, long)]
+    temperature: bool,
+    /// Log disks info
+    #[arg(short, long)]
+    disks: bool,
+    /// Log networks info
+    #[arg(short, long)]
+    networks: bool,
+    /// Log processes info
+    #[arg(short, long)]
+    processes: bool,
+    /// Log system info
+    #[arg(short, long)]
+    system: bool,
+    /// Interval between logs in seconds
+    #[arg(short, long, default_value_t = 1000)]
+    interval: u64,
+    /// If provided, the program will exit after the timeout (in seconds)
+    #[arg(long)]
+    timeout: Option<u64>,
+}
 
 fn main() {
     let env = env_logger::Env::default().default_filter_or("debug");
     env_logger::init_from_env(env);
+
+    let args = Cli::parse();
 
     let done = Arc::new(AtomicBool::default());
     ctrlc::set_handler({
@@ -271,14 +302,34 @@ fn main() {
     let mut networks = Networks::new_with_refreshed_list();
     system.refresh_all();
 
-    while !done.load(Ordering::Relaxed) {
-        log_cpu_info(&mut system);
-        log_memory_info(&mut system);
-        log_components_info(&mut components);
-        log_disks_info(&mut disks);
-        log_networks_info(&mut networks);
-        log_processes_info(&mut system);
-        log_system_info();
-        std::thread::sleep(std::time::Duration::from_millis(1000));
+    let mut elapsed_time_seconds: u64 = 0;
+    while !done.load(Ordering::Relaxed)
+        && args
+            .timeout
+            .map_or(true, |timeout| elapsed_time_seconds < timeout)
+    {
+        if args.cpu {
+            log_cpu_info(&mut system);
+        }
+        if args.memory {
+            log_memory_info(&mut system);
+        }
+        if args.temperature {
+            log_components_info(&mut components);
+        }
+        if args.disks {
+            log_disks_info(&mut disks);
+        }
+        if args.networks {
+            log_networks_info(&mut networks);
+        }
+        if args.processes {
+            log_processes_info(&mut system);
+        }
+        if args.system {
+            log_system_info();
+        }
+        std::thread::sleep(std::time::Duration::from_millis(args.interval));
+        elapsed_time_seconds = elapsed_time_seconds + 1;
     }
 }
