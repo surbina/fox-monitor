@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./splash.png" alt="Fox-Monitor splash image" width="600"/>
+</p>
+
 # Fox-Monitor
 
 This is a simple application built using the [Foxglove SDK](https://github.com/foxglove/foxglove-sdk/tree/main) that logs live system information and outputs it to an MCAP file or Foxglove itself.
