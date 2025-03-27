@@ -1,3 +1,4 @@
+mod channels;
 mod logger;
 
 use clap::Parser;
@@ -42,7 +43,7 @@ struct Cli {
     #[arg(short, long)]
     system: bool,
     /// Interval between logs in seconds
-    #[arg(short, long, default_value_t = 1000)]
+    #[arg(short, long, default_value_t = 1)]
     interval: u64,
     /// If provided, the program will exit after the timeout (in seconds)
     #[arg(long)]
@@ -97,14 +98,15 @@ fn main() {
     let mut logger_collection = LoggerCollection::new(&args);
 
     let mut elapsed_time_seconds: u64 = 0;
+    // Loop until the user closes the program or the timeout is reached
     while !done.load(Ordering::Relaxed)
         && args
             .timeout
             .map_or(true, |timeout| elapsed_time_seconds < timeout)
     {
         logger_collection.log_all();
-        std::thread::sleep(std::time::Duration::from_millis(args.interval));
-        elapsed_time_seconds += 1;
+        std::thread::sleep(std::time::Duration::from_millis(args.interval * 1000));
+        elapsed_time_seconds += args.interval;
     }
 
     // Close mcap writer if it was initialized
